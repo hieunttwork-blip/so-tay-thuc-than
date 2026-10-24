@@ -1,0 +1,19 @@
+# Cấu hình Netlify: mỗi lần bạn đẩy code lên GitHub, Netlify tự build và đăng bản mới.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/cache-list.json"
+  [headers.values]
+    Cache-Control = "no-cache"

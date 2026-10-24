@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="256" height="256" role="img" aria-label="Nước dừa tươi" class="art-dish"><ellipse cx="50" cy="90" rx="30" ry="4" fill="#000" opacity=".12"/>
+<circle cx="50" cy="60" r="31" fill="#7c9a4a" stroke="#4f6a2a" stroke-width="1.4"/>
+<path d="M30 78 Q50 90 70 78" stroke="#a8c46a" stroke-width="3" fill="none" opacity=".7"/>
+<ellipse cx="50" cy="38" rx="22" ry="7" fill="#f4eed8" stroke="#4f6a2a" stroke-width="1.4"/>
+<ellipse cx="50" cy="38.5" rx="19" ry="5" fill="#fbf8ec"/><path d="M54 48 L68 8" stroke="#e0a23c" stroke-width="3.4" stroke-linecap="round"/><path d="M54 48 L68 8" stroke="#fff" stroke-width="1" stroke-dasharray="4 5" opacity=".7"/><rect x="38" y="35" width="8" height="8" rx="1.8" fill="#eaf6fa" opacity=".8" stroke="#a8c8d4" stroke-width=".8" transform="rotate(-12 42 40)"/><rect x="49" y="33" width="8" height="8" rx="1.8" fill="#eaf6fa" opacity=".8" stroke="#a8c8d4" stroke-width=".8" transform="rotate(6 53 38)"/><rect x="56" y="36" width="8" height="8" rx="1.8" fill="#eaf6fa" opacity=".8" stroke="#a8c8d4" stroke-width=".8" transform="rotate(24 60 41)"/></svg>
