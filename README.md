@@ -112,3 +112,9 @@ Tự lưu vào `localStorage` sau mỗi hành động quan trọng, có checksum
 - Nấu xong có nút "Giao món ngay" và "Giao & nấu khách kế" ngay trong bảng kết quả.
 - Link Góp ý đã gắn vào `src/data/links.js`.
 - Phát hành bằng GitHub + Netlify: xem `HUONG_DAN_PHAT_HANH.md`. Có thanh "Có bản mới! Cập nhật" cho người chơi, `netlify.toml`, `.gitignore`, build tự đổi phiên bản.
+
+## v3.6 — bổ sung
+- Giao diện điện thoại gọn hơn (thanh trên cùng, thẻ khách, bảng nấu vừa một màn hình, giỏ hàng một hàng).
+- Chợ có ô tìm kiếm không dấu + gợi ý; nguyên liệu chỉ mở khóa khi đã học món cần nó.
+- Chấm sao công tâm: một bước yếu (ví dụ canh lửa trượt) thì không thể đạt 3 sao.
+- Tải nhanh hơn: build chỉ đưa tệp thật sự dùng (49 tệp, dưới 1 MB), tải song song mô-đun, ảnh nền WebP, đăng ký chế độ offline sau khi game hiện ra.

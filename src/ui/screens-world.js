@@ -8,7 +8,7 @@ import { HEATS, methodOf, tasteOf, TASTE_DIMS } from '../core/cooking.js';
 import { REGIONS, REGION_ORDER, LOCATIONS, LOCATION_BY_ID } from '../data/locations.js';
 import { NPCS } from '../data/npcs.js';
 import { getState, commit } from '../core/store.js';
-import { stock, storageCap, isBuyable, ingredientPrice, buyCart, cartTotal, hasAll, dishCostNow } from '../core/economy.js';
+import { stock, storageCap, isBuyable, regionOpen, dishesUsing, ingredientPrice, buyCart, cartTotal, hasAll, dishCostNow } from '../core/economy.js';
 import { menuAdd, menuRemove, menuPrice, priceMult, dishEconomics } from '../core/service.js';
 import { bonus } from '../core/progression.js';
 import { regionStatus, locationStatus, visit, learnStatus, learnDish, npcOf, topicsOf, askTopic, requestOf } from '../core/explore.js';
@@ -16,7 +16,7 @@ import { collections, milestoneState, claimCollection, describeReward } from '..
 import { emit } from '../core/bus.js';
 import { ACT, SCREENS, ui, go, refresh, mutate } from './app.js';
 import { openModal, closeModal, updateModal, toast, floatAt, confirmDialog } from './kit.js';
-import { esc, money, num, dishArt, person, bar, tabs, diffDots, stars, emptyState, catChip, regionChip, dishStatus } from './util.js';
+import { fold, esc, money, num, dishArt, person, bar, tabs, diffDots, stars, emptyState, catChip, regionChip, dishStatus } from './util.js';
 import { startCook } from './cook.js';
 import { ingIcon } from '../art/ingicons.js';
 import { openDraw, hasPendingDraw, infoBtn, menuManager } from './extras.js';
@@ -45,21 +45,27 @@ function cartBar(s) {
   const total = cartTotal(cart);
   return `<div class="cartbar ${n ? 'has' : ''}" role="region" aria-label="Giỏ hàng">
     <div class="cart-sum">${icon('shop', 20)}<div><b>Giỏ hàng: ${n} SL</b><small>Tổng ${money(total)} · Tiền có ${money(s.cash)}${total > s.cash ? ' · <span class="warn">vượt quá số tiền</span>' : ''}</small></div></div>
-    <div class="row"><button type="button" class="btn ghost small" data-act="cart-clear" ${n ? '' : 'disabled'}>Bỏ hết</button><button type="button" class="btn primary" data-act="cart-pay" ${n && total <= s.cash ? '' : 'disabled'}>${icon('money', 18)}<span>Thanh toán ${n ? money(total) : ''}</span></button></div></div>`;
+    <div class="row"><button type="button" class="btn ghost small" data-act="cart-clear" ${n ? '' : 'disabled'}>Bỏ hết</button><button type="button" class="btn primary" data-act="cart-pay" ${n && total <= s.cash ? '' : 'disabled'}>${icon('money', 18)}<span>Thanh toán</span></button></div></div>`;
 }
 
 function marketTab(s) {
-  const g = ui.market.group;
+  const g = ui.market.group, q = fold(ui.market.q.trim());
   const chips = `<div class="chips" role="group" aria-label="Lọc nhóm nguyên liệu"><button type="button" class="chip btnchip ${g === '' ? 'on' : ''}" data-act="mk-group" data-g="">Tất cả</button>${GROUP_IDS.map((id) => `<button type="button" class="chip btnchip ${g === id ? 'on' : ''}" data-act="mk-group" data-g="${id}">${icon(INGREDIENT_GROUPS[id].icon, 16)}${esc(INGREDIENT_GROUPS[id].name)}</button>`).join('')}</div>`;
-  const all = Object.keys(INGREDIENTS).filter((id) => !g || INGREDIENTS[id].group === g);
+  const matchQ = (id) => !q || fold(INGREDIENTS[id].name).includes(q);
+  const all = Object.keys(INGREDIENTS).filter((id) => (q || !g || INGREDIENTS[id].group === g) && matchQ(id));
   const buyable = all.filter((id) => isBuyable(s, id));
   const locked = all.filter((id) => !isBuyable(s, id));
-  const quick = `<div class="quickbuy"><b>Mua nhanh</b><small>mỗi loại đang hiện:</small><button type="button" class="btn small" data-act="quick-all" data-q="1">SL 1</button><button type="button" class="btn small" data-act="quick-all" data-q="5">SL 5</button></div>`;
-  return `${chips}${quick}<ul class="list">${buyable.map((id) => ingRow(s, id, 'market')).join('') || '<li class="muted">Không có nguyên liệu nào trong nhóm này.</li>'}</ul>
-  ${locked.length ? `<details class="card"><summary>Chưa có ở chợ (${locked.length})</summary><ul class="list plain">${locked.map((id) => {
-    const a = INGREDIENTS[id].avail;
-    return `<li class="row-item"><span class="ri-ic">${icon('lock', 22)}</span><span class="ri-main"><b>${esc(INGREDIENTS[id].name)}</b><small>${a === 'hiem' ? 'Nguyên liệu hiếm, chỉ kiếm được khi khám phá.' : `Mở khóa ${REGIONS[a].name} để mua.`}</small></span></li>`;
-  }).join('')}</ul></details>` : ''}${cartBar(s)}`;
+  const sugg = q ? all.slice(0, 6) : [];
+  const search = `<label class="search">${icon('search', 18)}<input type="search" data-input="mk-q" placeholder="Tìm nguyên liệu (gõ có dấu hoặc không dấu)" value="${esc(ui.market.q)}" aria-label="Tìm nguyên liệu" autocomplete="off"></label>
+  ${sugg.length ? `<div class="suggest" role="group" aria-label="Gợi ý">${sugg.map((id) => `<button type="button" class="chip btnchip ${isBuyable(s, id) ? '' : 'dim'}" data-act="mk-pick" data-name="${esc(INGREDIENTS[id].name)}">${esc(INGREDIENTS[id].name)}${isBuyable(s, id) ? '' : ' (khóa)'}</button>`).join('')}</div>` : ''}`;
+  const quick = q ? '' : `<div class="quickbuy"><b>Mua nhanh</b><small>mỗi loại đang hiện:</small><button type="button" class="btn small" data-act="quick-all" data-q="1">SL 1</button><button type="button" class="btn small" data-act="quick-all" data-q="5">SL 5</button></div>`;
+  const reason = (id) => {
+    if (!regionOpen(s, id)) { const a = INGREDIENTS[id].avail; return a === 'hiem' ? 'Nguyên liệu hiếm, chỉ kiếm được khi khám phá.' : `Mở khóa ${REGIONS[a].name} để mua.`; }
+    const names = dishesUsing(id);
+    return names.length ? `Học món để mở khóa: ${names.join(', ')}.` : 'Học thêm món để mở khóa.';
+  };
+  return `${search}${chips}${quick}<ul class="list">${buyable.map((id) => ingRow(s, id, 'market')).join('') || `<li class="muted">${q ? 'Không thấy nguyên liệu đã mở khóa khớp với từ khóa.' : 'Chưa có nguyên liệu nào trong nhóm này. Hãy học thêm món để mở khóa.'}</li>`}</ul>
+  ${locked.length ? `<details class="card" ${q ? 'open' : ''}><summary>Chưa mở khóa (${locked.length})</summary><p class="muted">Nguyên liệu chỉ mở khóa khi bạn đã học món cần nó, để khỏi mua thừa.</p><ul class="list plain">${locked.map((id) => `<li class="row-item"><span class="ri-ic">${icon('lock', 22)}</span><span class="ri-main"><b>${esc(INGREDIENTS[id].name)}</b><small>${esc(reason(id))}</small></span></li>`).join('')}</ul></details>` : ''}${cartBar(s)}`;
 }
 function forageTab(s) {
   const locs = LOCATIONS.filter((l) => s.visited[l.id]);
@@ -94,6 +100,8 @@ SCREENS.pantry = {
   },
 };
 ACT['tab-pantry'] = (el) => { ui.tab.pantry = el.dataset.tab; refresh(); };
+ACT['input:mk-q'] = (el) => { ui.market.q = el.value; refresh(); };
+ACT['mk-pick'] = (el) => { ui.market.q = el.dataset.name; refresh(); };
 ACT['mk-group'] = (el) => { ui.market.group = el.dataset.g; refresh(); };
 ACT['cart-add'] = (el) => {
   const s = getState(), id = el.dataset.id, q = Number(el.dataset.q), cart = ui.market.cart;
@@ -147,14 +155,14 @@ const SORTS = { level: 'Cấp độ', name: 'Tên A-Z', price: 'Giá bán cao nh
 const econ = (s, d) => (s.learned[d.id] ? dishEconomics(s, d.id) : (() => { const cost = dishCostNow(d); return { price: d.price, cost, profit: d.price - cost, margin: Math.round(((d.price - cost) / d.price) * 100) }; })());
 function nbFilter(s) {
   const f = ui.nb;
-  const q = f.q.trim().toLowerCase();
+  const q = fold(f.q.trim());
   let list = DISHES.filter((d) => {
     const st = dishStatus(s, d).id;
     if (d.secret && st === 'unknown') return f.status === '' || f.status === 'unknown';
     if (f.region && d.region !== f.region) return false;
     if (f.cat && d.cat !== f.cat) return false;
     if (f.status && st !== f.status) return false;
-    if (q) { if (st === 'unknown') return false; if (!(d.name.toLowerCase().includes(q) || Object.keys(d.ingredients).some((i) => INGREDIENTS[i].name.toLowerCase().includes(q)))) return false; }
+    if (q) { if (st === 'unknown') return false; if (!(fold(d.name).includes(q) || Object.keys(d.ingredients).some((i) => fold(INGREDIENTS[i].name).includes(q)))) return false; }
     return true;
   });
   const cmp = {

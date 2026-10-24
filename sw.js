@@ -1,5 +1,5 @@
 // Service worker: lưu game vào bộ nhớ đệm để chơi được khi không có mạng. Đổi VERSION mỗi khi phát hành bản mới.
-const VERSION = 'v3-5';
+const VERSION = 'v3-6';
 const CACHE = `sttt-${VERSION}`;
 self.addEventListener('install', (e) => {
   e.waitUntil(fetch('./cache-list.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : ['./', './index.html'])).catch(() => ['./', './index.html'])

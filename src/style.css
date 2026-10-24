@@ -317,8 +317,8 @@ select{width:auto;max-width:100%}
 
 /* v3.2 — bản đồ tiêu đề, góp ý, ủng hộ */
 .title-mode{background:radial-gradient(circle at 50% 30%,#2a8fc4,#145f91);padding:0}
-.title-stage{position:relative;height:100dvh;aspect-ratio:2/3;max-width:100vw;margin:0 auto;background:url(../assets/ui/title-map.jpg) center/100% 100% no-repeat}
-@media (max-aspect-ratio:2/3){.title-stage{height:auto;width:100vw;aspect-ratio:auto;min-height:100dvh;background:none}.title-stage::before{content:'';position:absolute;left:0;right:0;top:0;aspect-ratio:2/3;background:url(../assets/ui/title-map.jpg) center/100% 100% no-repeat;-webkit-mask-image:linear-gradient(#000 85%,transparent);mask-image:linear-gradient(#000 85%,transparent)}}
+.title-stage{position:relative;height:100dvh;aspect-ratio:2/3;max-width:100vw;margin:0 auto;background:url(../assets/ui/title-map.webp) center/100% 100% no-repeat}
+@media (max-aspect-ratio:2/3){.title-stage{height:auto;width:100vw;aspect-ratio:auto;min-height:100dvh;background:none}.title-stage::before{content:'';position:absolute;left:0;right:0;top:0;aspect-ratio:2/3;background:url(../assets/ui/title-map.webp) center/100% 100% no-repeat;-webkit-mask-image:linear-gradient(#000 85%,transparent);mask-image:linear-gradient(#000 85%,transparent)}}
 .title-mode .title{width:100%}
 .title-mode .title-card{position:absolute;left:4%;right:4%;bottom:3%;max-width:none;width:auto;padding:12px 14px;background:rgba(255,248,230,.93);backdrop-filter:blur(2px)}
 @media (min-width:560px){.title-mode .title-card{left:auto;right:3%;bottom:4%;width:min(46%,380px)}}
@@ -382,3 +382,57 @@ select{width:auto;max-width:100%}
 @media(min-width:900px){#update-bar{bottom:16px}}
 .cook-result .row.end{flex-wrap:wrap}.cook-result .row.end .btn{flex:1 1 40%;justify-content:center;white-space:nowrap}
 .cook-result .row.end .btn.good{flex-basis:100%}
+
+.suggest{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.chip.dim{opacity:.65}
+
+/* v3.6 — gọn cho điện thoại: ít phải cuộn, vẫn dễ nhìn */
+.dgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(min-width:600px){.dgrid{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(min-width:900px){.dgrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.dcard{min-width:0}
+@media(max-width:600px){
+ body{font-size:15px;line-height:1.4}
+ h1{font-size:1.2rem;margin:.1em 0 .3em}h2{font-size:1.1rem}h3{font-size:1rem}
+ .screen{padding:8px 8px 70px}
+ .card{padding:8px;margin:0 0 8px}
+ .btn{min-height:40px;padding:6px 12px}.btn.small{min-height:32px;padding:3px 9px}.btn.big{min-height:46px;padding:8px 16px}
+ .tabs{padding:0 2px 6px;gap:5px}.tab{min-height:34px;padding:4px 12px;font-size:.9rem}
+ .chips{gap:4px;margin:.2em 0 .5em}.chip{font-size:.76rem;padding:1px 7px}
+ /* thanh trên cùng */
+ .hud{padding:4px 8px;gap:4px 8px}
+ .hud-id{gap:6px}.hud-id svg{width:32px;height:32px}
+ .hud-name small:not(.xp-txt){display:none}.hud-name{min-width:96px}
+ .hud-chips{gap:4px}.hud .chip{padding:1px 7px;font-size:.78rem}.hud .chip svg{width:15px;height:15px}
+ .chip.mini b{display:none}.chip.mini{padding:2px 6px}
+ .repchip .repm{width:54px}
+ /* thanh điều hướng */
+ .nav-btn{padding:4px 2px;font-size:.6rem}.nav-btn svg{width:22px;height:22px}
+ /* phục vụ */
+ .shift-head{padding:6px 8px;gap:6px}.clockbox b{font-size:1.15rem}.clockbox small{font-size:.72rem}
+ .shift-stats{gap:4px}
+ .cust-grid{gap:8px;grid-template-columns:1fr}
+ .cust{padding:6px 8px;gap:4px 8px;grid-template-columns:1fr 90px;grid-template-areas:"who pat" "order order" "acts acts"}
+ .cust-who{grid-area:who;gap:6px}.cust-who svg{width:38px;height:38px}
+ .cust .patience{grid-area:pat}.cust-order{grid-area:order;gap:8px}.cust-order svg{width:40px;height:40px}.cust>.row{grid-area:acts}
+ .cust .row .btn{min-height:36px}
+ .endbanner{padding:8px}
+ /* giỏ hàng chợ gọn một hàng */
+ .cartbar{bottom:60px;padding:6px 8px;gap:6px;border-width:2px}.cart-sum small{font-size:.7rem}.cartbar .btn{min-height:34px}
+ .quickbuy{padding:4px 8px;margin:4px 0}
+ .row-item{padding:5px 8px;gap:8px}.ri-ic svg{width:26px;height:26px}
+ /* bảng nấu */
+ .modal{padding:10px;max-height:96vh}
+ .cook-dish svg{width:44px;height:44px}.cook-head h2{font-size:1.05rem}
+ .steps{margin:6px 0}.steps li{font-size:.62rem}
+ .lead{font-size:.85rem;margin:.1em 0 .4em}
+ .qlist{gap:4px;margin:4px 0}.qrow{padding:3px 6px;gap:6px}.qi svg{width:28px;height:28px}.qrow .btn.round{min-width:34px;min-height:34px}.qv{font-size:1.1rem;min-width:22px}
+ .tiers .chip{min-height:36px}.tasterow{padding:5px 0;gap:4px}
+ .cook-result .big-stars svg{width:32px;height:32px}.score-list li{padding:2px 0}
+ .filters .search{flex-basis:100%}.filters select{flex:1 1 40%;min-width:0;font-size:.85rem;min-height:36px}
+ .dcard{padding:6px}.dcard svg{max-width:100%}
+}
+
+.dwrap{min-width:0}.dwrap>.dcard{width:100%;height:100%}
+@media(max-width:600px){
+ .cartbar{flex-wrap:nowrap}.cartbar .row{flex:none;gap:6px}.cart-sum{min-width:0}.cart-sum b{white-space:nowrap}.cart-sum small{display:block;line-height:1.2}
+ .cartbar .btn.ghost{padding:3px 8px}
+}

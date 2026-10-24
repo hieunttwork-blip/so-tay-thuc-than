@@ -12,7 +12,7 @@ import { setSoundEnabled, setMusicEnabled, setMusicVolume } from '../core/audio.
 export const ui = {
   screen: 'title',
   tab: { pantry: 'market', quests: 'main', more: 'upgrades' },
-  market: { group: '', cart: {} },
+  market: { group: '', q: '', cart: {} },
   menuView: { q: '', sort: 'profit', only: 'all' },
   nb: { q: '', cat: '', region: '', status: '', sort: 'level', limit: 24, tab: 'dishes' },
   mapRegion: 'bac',

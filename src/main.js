@@ -32,12 +32,15 @@ startApp();
 // Cho phép chơi offline và cài như ứng dụng (chỉ hoạt động khi chạy qua http/https, không phải mở thẳng tệp).
 if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !['localhost', '127.0.0.1'].includes(location.hostname)) {
   const hadController = Boolean(navigator.serviceWorker.controller);
-  navigator.serviceWorker.register('./sw.js').then((reg) => {
+  const registerSW = () => navigator.serviceWorker.register('./sw.js').then((reg) => {
     // Kiểm tra bản mới khi mở lại tab và mỗi 20 phút.
     const check = () => reg.update().catch(() => {});
     document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
     setInterval(check, 20 * 60 * 1000);
   }).catch(() => {});
+  // Đăng ký sau khi game đã hiện ra để không tranh băng thông lúc mở.
+  const later = () => ('requestIdleCallback' in window ? requestIdleCallback(registerSW, { timeout: 4000 }) : setTimeout(registerSW, 2000));
+  if (document.readyState === 'complete') later(); else window.addEventListener('load', later);
   // Khi bản mới đã tải xong và thay bản cũ: hiện thanh báo để người chơi tải lại (tiến trình đã được lưu).
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) showUpdateBar(); });
 }

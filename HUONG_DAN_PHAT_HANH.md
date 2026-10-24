@@ -60,6 +60,14 @@ Cách hoạt động: GitHub giữ mã nguồn của bạn. Netlify nhìn vào G
 ### Nếu bản mới bị lỗi
 Vào Netlify > **Deploys**, bấm vào bản cũ chạy tốt > **Publish deploy**. Game quay về bản cũ ngay, bạn sửa lỗi xong rồi đẩy lại.
 
+## Logo/khung Netlify ở góc phải che game
+Đó là **Netlify Drawer** (công cụ góp ý dành cho nhóm làm game), không phải của game. Cách tắt:
+1. Vào Netlify, mở site của bạn.
+2. Vào **Project configuration > Developer settings > Continuous deployment > Collaboration tools**.
+3. Bấm **Configure** và **tắt Netlify Drawer**.
+4. Mở lại link game (bấm tải lại trang). Người chơi bình thường thường không thấy khung này, nhưng tắt đi cho chắc.
+Mẹo tạm thời: thêm `?ntl-drawer-state=hidden` vào cuối link để ẩn khung ở lần mở đó.
+
 ## Nếu lỗi
 - **Netlify báo build failed**: mở bản deploy, đọc dòng đỏ cuối cùng. Thường do tệp bị thiếu: kiểm tra trên GitHub có đủ thư mục `src`, `assets`, `scripts`, tệp `package.json`.
 - **Link mở ra trang trắng**: Publish directory phải là `dist`, Build command phải là `npm run build`.

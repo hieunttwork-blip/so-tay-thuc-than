@@ -104,6 +104,9 @@ test('kinh tế: mua, kho, giới hạn, mua nhanh, cứu trợ', () => {
   assert.ok(gift >= 80); assert.equal(eco.rescueIfStuck(s), 0, 'chỉ 1 lần mỗi ngày');
   // mở miền Trung thì mua được nguyên liệu miền Trung với giá cao hơn
   s.regions.trung = true; s.cash = 100;
+  assert.equal(eco.buy(s, 'mam-nem', 1).ok, false, 'chưa học món nào cần mắm nêm thì chưa mở khóa');
+  const need = Object.values(DISH_BY_ID).find((d) => d.ingredients['mam-nem']);
+  s.learned[need.id] = true;
   assert.equal(eco.buy(s, 'mam-nem', 1).ok, true);
   assert.equal(s.cash, 100 - Math.ceil(3 * 1.15));
 });
@@ -144,7 +147,9 @@ test('nấu ăn: chấm số lượng, sơ chế, canh lửa và quy trình gọ
   assert.equal(C.scoreHeatRounds([{ hit: false, near: false }, { hit: false, near: false }, { hit: false, near: false }]), 0);
   assert.ok(C.markerPos(0, 2000) === 0 && Math.abs(C.markerPos(1000, 2000) - 100) < 1e-9);
   // tổng hợp và sao
-  assert.deepEqual(C.combine('soup', { select: 100, prep: 100, heat: 100, season: 100 }), { score: 100, stars: 3 });
+  assert.deepEqual(C.combine('soup', { select: 100, prep: 100, heat: 100, season: 100 }), { score: 100, stars: 3, weakest: 100 });
+  assert.equal(C.combine('soup', { select: 100, prep: 100, heat: 34, season: 100 }).stars, 1, 'canh lửa trượt thì không thể cao sao');
+  assert.equal(C.combine('soup', { select: 100, prep: 100, heat: 67, season: 100 }).stars, 2, 'một bước yếu giới hạn ở 2 sao');
   assert.equal(C.combine('drink', { select: 100, prep: 100, season: 100 }).stars, 3, 'món pha chế không có bước lửa');
   assert.equal(C.combine('soup', { select: 0, prep: 0, heat: 0, season: 0 }).stars, 0);
   // vị 4 chiều

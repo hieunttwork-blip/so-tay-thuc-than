@@ -8,7 +8,9 @@ const dist = path.join(root, 'dist');
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
 const FILES = ['index.html', 'manifest.webmanifest', 'sw.js'];
-const DIRS = ['src', 'assets', 'icons'];
+// Chỉ đưa vào bản phát hành những tệp game thật sự dùng (các tệp SVG xuất ra trong assets/ chỉ để tham khảo).
+const DIRS = ['src', 'icons'];
+const ASSET_FILES = ['assets/icon.svg', 'assets/ui/title-map.webp', 'assets/ui/donate-qr.jpg'];
 const list = [];
 function copy(rel) {
   const from = path.join(root, rel), to = path.join(dist, rel);
@@ -20,6 +22,14 @@ function copy(rel) {
 }
 for (const f of FILES) copy(f);
 for (const d of DIRS) copy(d);
+for (const f of ASSET_FILES) copy(f);
+// Tải sẵn song song mọi mô-đun JS và ảnh nền để game mở nhanh hơn.
+{
+  const mods = list.filter((f) => f.endsWith('.js') && f.startsWith('./src/'));
+  const tags = ['<link rel="preload" as="image" href="assets/ui/title-map.webp">', ...mods.map((f) => `<link rel="modulepreload" href="${f.slice(2)}">`)].join('\n  ');
+  const ip = path.join(dist, 'index.html');
+  fs.writeFileSync(ip, fs.readFileSync(ip, 'utf8').replace('</head>', `  ${tags}\n</head>`));
+}
 list.unshift('./');
 // Tự đổi phiên bản bộ nhớ đệm mỗi lần build để người chơi luôn nhận bản mới.
 const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12);

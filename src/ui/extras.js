@@ -13,7 +13,7 @@ import { masteryOf } from '../core/mastery.js';
 import { hasAll } from '../core/economy.js';
 import { ACT, ui, refresh, mutate } from './app.js';
 import { openModal, closeModal, updateModal, toast } from './kit.js';
-import { esc, money, dishArt, regionChip, catChip, stars } from './util.js';
+import { fold, esc, money, dishArt, regionChip, catChip, stars } from './util.js';
 
 // ================= Tiểu sử món ("!") =================
 export const infoBtn = (id, cls = '') => `<button type="button" class="info-btn ${cls}" data-act="dish-info" data-id="${id}" aria-label="Tiểu sử món ăn" title="Tiểu sử món ăn">!</button>`;
@@ -126,11 +126,11 @@ export const MENU_SORTS = { profit: 'Lãi mỗi phần', margin: 'Tỷ suất l�
 export function menuManager(s) {
   const b = bonus(s);
   const f = ui.menuView;
-  const q = f.q.trim().toLowerCase();
+  const q = fold(f.q.trim());
   let list = Object.keys(s.learned).filter((id) => DISH_BY_ID[id]).map((id) => ({ id, d: DISH_BY_ID[id], e: dishEconomics(s, id), inMenu: s.menu.ids.includes(id), ml: masteryOf(s, id) }));
   if (f.only === 'in') list = list.filter((x) => x.inMenu);
   if (f.only === 'out') list = list.filter((x) => !x.inMenu);
-  if (q) list = list.filter((x) => x.d.name.toLowerCase().includes(q));
+  if (q) list = list.filter((x) => fold(x.d.name).includes(q));
   const cmp = {
     profit: (a, c) => c.e.profit - a.e.profit, margin: (a, c) => c.e.margin - a.e.margin, sold: (a, c) => c.e.sold - a.e.sold,
     rev: (a, c) => c.e.rev - a.e.rev, level: (a, c) => c.ml.level - a.ml.level || c.e.profit - a.e.profit, name: (a, c) => a.d.name.localeCompare(c.d.name, 'vi'),

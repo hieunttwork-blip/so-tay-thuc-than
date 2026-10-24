@@ -10,6 +10,8 @@ export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&a
 import { vnd } from '../core/fmt.js';
 export const money = vnd;
 export const num = (n) => Math.round(n).toLocaleString('vi-VN');
+/** Bỏ dấu tiếng Việt và viết thường để tìm kiếm gõ không dấu vẫn ra kết quả. */
+export const fold = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase();
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export const $ = (sel, root = document) => root.querySelector(sel);
 

@@ -1,7 +1,7 @@
 // Tiền, kho nguyên liệu, mua bán, cứu trợ khi kẹt vốn. Mọi thay đổi tiền/kho của game đều đi qua đây.
 import { vnd } from './fmt.js';
 import { INGREDIENTS, isItem } from '../data/ingredients.js';
-import { DISH_BY_ID } from '../data/dishes.js';
+import { DISH_BY_ID, EXTRAS } from '../data/dishes.js';
 import { bonus, bump } from './progression.js';
 import { toast, emit } from './bus.js';
 
@@ -36,10 +36,31 @@ export function ingredientPrice(id) {
   if (!ing) return 0;
   return ing.avail === 'base' || ing.avail === 'hiem' ? ing.price : Math.ceil(ing.price * 1.15);
 }
-export function isBuyable(state, id) {
+/** Nguyên liệu chỉ mở khóa khi bạn đã học một món cần nó (hoặc topping của nhóm món đã học). */
+export function unlockedSet(state) {
+  const set = new Set();
+  for (const did of Object.keys(state.learned || {})) {
+    const d = DISH_BY_ID[did];
+    if (!d) continue;
+    for (const id of Object.keys(d.ingredients)) set.add(id);
+    const ex = EXTRAS[d.cat];
+    if (ex) set.add(ex.ing);
+  }
+  return set;
+}
+/** Những món (tên) cần nguyên liệu này, để báo người chơi học món nào thì mở khóa. */
+export function dishesUsing(id, limit = 3) {
+  const out = [];
+  for (const d of Object.values(DISH_BY_ID)) if (d.ingredients[id] && !d.secret) { out.push(d.name); if (out.length >= limit) break; }
+  return out;
+}
+export function regionOpen(state, id) {
   const ing = INGREDIENTS[id];
   if (!ing || ing.avail === 'hiem') return false;
   return ing.avail === 'base' || Boolean(state.regions[ing.avail]);
+}
+export function isBuyable(state, id) {
+  return regionOpen(state, id) && unlockedSet(state).has(id);
 }
 export const stock = (state, id) => state.inv[id] || 0;
 export const storageCap = (state) => bonus(state).storageCap;

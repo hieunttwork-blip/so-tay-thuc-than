@@ -302,6 +302,8 @@ function resultView() {
   const r = C.result;
   const rows = C.s.steps.map((st) => `<li><span>${STEP_NAMES[st]}${C.hinted[st] ? ' <small>(gợi ý)</small>' : ''}</span>${bar(r.scores[st] ?? 0, 'sc', STEP_NAMES[st])}<b>${r.scores[st] ?? 0}</b></li>`).join('');
   let extra = '';
+  const weak = C.s.steps.map((st) => [st, r.scores[st] ?? 100]).sort((a, b) => a[1] - b[1])[0];
+  const weakNote = r.stars > 0 && r.stars < 3 && weak && weak[1] < 90 ? `<div class="note warn">${icon('help', 18)}<div>Bước <b>${STEP_NAMES[weak[0]]}</b> mới đạt ${weak[1]} điểm nên món chưa thể đạt 3 sao. Làm đều tay cả bốn bước mới được 3 sao.</div></div>` : '';
   const note = tasteNote([...(C.issues || []), ...(C.tasteIss || [])], C.spiceOk === false);
   const tn = `<div class="note ${C.issues?.length || C.tasteIss?.length || C.spiceOk === false ? 'warn' : 'good'}">${icon('help', 18)}<div>${esc(note)}${C.penalty ? ` Đã dùng gợi ý trả phí: -${C.penalty} điểm.` : ''}</div></div>`;
   if (C.mode === 'order') {
@@ -320,7 +322,7 @@ function resultView() {
   const canRetry = (C.mode === 'order' && r.stars === 0 && !r.note) || (C.mode === 'gift' && !r.gift.ok && !r.gift.full) || C.mode === 'practice';
   return `<div class="cook-result"><div class="big-stars" role="img" aria-label="${r.stars} sao">${starsHtml(r.stars, 3, 40)}</div>
   <h3>${STAR_LABEL[r.stars]} · ${r.score} điểm</h3>
-  <ul class="score-list">${rows}</ul>${tn}${extra}
+  <ul class="score-list">${rows}</ul>${tn}${weakNote}${extra}
   <div class="row end">${canRetry ? '<button type="button" class="btn ghost" data-act="ck-retry">Nấu lại</button>' : ''}${me ? `<button type="button" class="btn good big" data-act="ck-serve" data-autofocus>${icon('check', 20)}<span>Giao món ngay</span></button>${hasNext ? `<button type="button" class="btn primary" data-act="ck-serve-next">Giao & nấu khách kế</button>` : ''}` : ''}<button type="button" class="btn ${me ? 'ghost' : 'primary'}" data-act="ck-close" ${me ? '' : 'data-autofocus'}>${C.mode === 'order' && r.stars > 0 ? 'Để sau' : 'Đóng'}</button></div></div>`;
 }
 ACT['ck-retry'] = () => { C.order = { ...C.order, prepScore: null }; newSession(getState()); redraw(); };

@@ -219,7 +219,12 @@ export function combine(method, scores) {
   let num = 0, den = 0;
   for (const st of steps) { if (scores[st] == null) continue; num += WEIGHTS[st] * scores[st]; den += WEIGHTS[st]; }
   const score = den ? Math.round(num / den) : 0;
-  return { score, stars: starsFromScore(score) };
+  // Công tâm: một bước làm ẩu thì không thể đạt sao cao dù các bước khác hoàn hảo.
+  const weakest = Math.min(...steps.map((st) => (scores[st] == null ? 100 : scores[st])));
+  let stars = starsFromScore(score);
+  if (weakest < 90) stars = Math.min(stars, 2);
+  if (weakest < 50) stars = Math.min(stars, 1);
+  return { score, stars, weakest };
 }
 
 export const GARNISH_ALL = Object.keys(GARNISHES);
