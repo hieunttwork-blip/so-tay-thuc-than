@@ -15,7 +15,7 @@ const toastLayer = () => document.getElementById('layer-toast');
 export function openModal({ html, cls = '', closable = true, onClose = null, label = '' }) {
   const id = ++seq;
   const el = document.createElement('div');
-  el.className = 'modal-back';
+  el.className = `modal-back${/<(input|textarea|select)\b/.test(html) ? ' has-input' : ''}`;
   el.dataset.modal = String(id);
   el.innerHTML = `<div class="modal ${cls}" role="dialog" aria-modal="true" ${label ? `aria-label="${esc(label)}"` : ''} tabindex="-1">${html}</div>`;
   layer().appendChild(el);
@@ -153,6 +153,25 @@ export function pumpCelebrations() {
   confetti();
 }
 
+/** Bàn phím ảo trên điện thoại: thu hộp thoại vào vùng còn nhìn thấy và đẩy lên cao để không bị che ô nhập. */
+export function wireKeyboard() {
+  const vv = window.visualViewport;
+  const sync = () => {
+    const root = document.documentElement.style;
+    if (vv) { root.setProperty('--vvh', `${Math.round(vv.height)}px`); root.setProperty('--vvt', `${Math.round(vv.offsetTop)}px`); }
+  };
+  if (vv) { vv.addEventListener('resize', sync); vv.addEventListener('scroll', sync); sync(); }
+  const isField = (el) => el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+  document.addEventListener('focusin', (e) => {
+    const back = e.target.closest && e.target.closest('.modal-back');
+    if (!back || !isField(e.target)) return;
+    back.classList.add('kb');
+    setTimeout(() => { try { e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch { /* bỏ qua */ } }, 350);
+  });
+  document.addEventListener('focusout', () => {
+    setTimeout(() => { if (!isField(document.activeElement)) document.querySelectorAll('.modal-back.kb').forEach((b) => b.classList.remove('kb')); }, 150);
+  });
+}
 export function wireBus(names) {
   on('levelup', (p) => celebrate({ type: 'levelup', ...p }));
   on('unlock', (p) => celebrate({ type: 'unlock', ...p }));
@@ -163,3 +182,10 @@ export function wireBus(names) {
   on('toast', ({ text, kind }) => toast(text, kind));
 }
 export { money };
+
+// Khi bàn phím điện thoại hiện lên, tự cuộn ô đang nhập vào giữa màn hình để không bị che.
+document.addEventListener('focusin', (e) => {
+  const el = e.target;
+  if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+  setTimeout(() => { try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch { /* bỏ qua */ } }, 320);
+});

@@ -4,7 +4,7 @@ import { setState, getState, flushSave } from './core/store.js';
 import { refreshQuests } from './core/quests.js';
 import { REGIONS } from './data/locations.js';
 import { unlockAudio, setSoundEnabled, setMusicEnabled, setMusicVolume } from './core/audio.js';
-import { wireBus, setCelebrationBlocker } from './ui/kit.js';
+import { wireBus, wireKeyboard, setCelebrationBlocker } from './ui/kit.js';
 import { ui, startApp, go } from './ui/app.js';
 import './ui/cook.js';
 import './ui/saveui.js';
@@ -14,6 +14,7 @@ import './ui/screens-meta.js';
 import { isCooking } from './ui/cook.js';
 
 setCelebrationBlocker(isCooking);
+wireKeyboard();
 wireBus(Object.fromEntries(Object.entries(REGIONS).map(([k, v]) => [k, v.name])));
 
 const r = load();

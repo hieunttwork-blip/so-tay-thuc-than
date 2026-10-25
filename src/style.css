@@ -164,7 +164,7 @@ select{width:auto;max-width:100%}
 .done-line{display:flex;gap:6px;align-items:center;margin:.2em 0}
 /* modal */
 #layer-modal{position:fixed;inset:0;z-index:50;pointer-events:none}
-.modal-back{position:fixed;inset:0;background:rgba(40,25,15,.55);display:flex;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .15s;pointer-events:auto}
+.modal-back{position:fixed;inset:auto;left:0;right:0;top:var(--vvt,0px);height:var(--vvh,100%);background:rgba(40,25,15,.55);display:flex;align-items:flex-end;justify-content:center;opacity:0;transition:opacity .15s;pointer-events:auto}
 .modal-back.in{opacity:1}
 .modal{background:var(--cream);border:3px solid var(--brown);border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:92vh;overflow:auto;padding:16px;outline:none;transform:translateY(20px);transition:transform .15s}
 .modal-back.in .modal{transform:none}
@@ -436,3 +436,12 @@ select{width:auto;max-width:100%}
  .cartbar{flex-wrap:nowrap}.cartbar .row{flex:none;gap:6px}.cart-sum{min-width:0}.cart-sum b{white-space:nowrap}.cart-sum small{display:block;line-height:1.2}
  .cartbar .btn.ghost{padding:3px 8px}
 }
+
+.modal{max-height:calc(var(--vvh,100vh)*.96)}
+.modal-back.kb{align-items:flex-start;padding-top:8px}
+.modal-back.kb .modal{border-radius:18px;max-height:calc(var(--vvh,100vh) - 16px)}
+
+/* hộp thoại có ô nhập: nằm ở phía trên để bàn phím không che */
+.modal-back.has-input{align-items:flex-start;padding-top:max(10px,5dvh)}
+.modal-back.has-input .modal{border-radius:18px;max-height:90dvh;margin:0 8px}
+.modal{max-height:92dvh}

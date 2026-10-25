@@ -118,3 +118,6 @@ Tự lưu vào `localStorage` sau mỗi hành động quan trọng, có checksum
 - Chợ có ô tìm kiếm không dấu + gợi ý; nguyên liệu chỉ mở khóa khi đã học món cần nó.
 - Chấm sao công tâm: một bước yếu (ví dụ canh lửa trượt) thì không thể đạt 3 sao.
 - Tải nhanh hơn: build chỉ đưa tệp thật sự dùng (49 tệp, dưới 1 MB), tải song song mô-đun, ảnh nền WebP, đăng ký chế độ offline sau khi game hiện ra.
+
+## v3.7
+- Hộp thoại có ô nhập (nhập tên, tìm kiếm) nằm phía trên và tự cuộn vào giữa khi bàn phím hiện, không bị che.
