@@ -658,3 +658,19 @@ test('khách đến không giới hạn ghế và dày hơn khi uy tín cao', as
   for (let i = 0; i < 200; i++) tick(a, 1);
   assert.ok(a.shift.customers.length > 6, 'không bị giới hạn bởi số ghế');
 });
+
+test('khay nguyên liệu: chọn đúng món, số lượng tự động, chọn nhầm bị trừ điểm', () => {
+  const req = { a: 2, b: 1 };
+  assert.equal(C.scoreTray(req, ['a', 'b']).score, 100);
+  assert.ok(C.scoreTray(req, ['a', 'zz']).score < 60);
+  assert.deepEqual(C.trayChosen(req, ['a', 'zz']), { a: 2, zz: 1 });
+});
+
+test('nêm vị: khách chỉ dặn 1-2 vị và chỉ chấm các vị đó', () => {
+  for (const dish of Object.values(DISH_BY_ID).slice(0, 40)) {
+    const tg = C.defaultTaste(dish);
+    for (const k of ['salt', 'sweet', 'sour', 'spice']) { const t = { ...tg, [k]: (tg[k] + 1) % 3 }; const n = C.asksOf(dish, t).length; assert.ok(n >= 1 && n <= 2); }
+    assert.equal(C.asksOf(dish, tg).length, 1);
+    assert.equal(C.scoreSeason(tg, tg, 0, dish), 100);
+  }
+});

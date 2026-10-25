@@ -121,3 +121,14 @@ Tự lưu vào `localStorage` sau mỗi hành động quan trọng, có checksum
 
 ## v3.7
 - Hộp thoại có ô nhập (nhập tên, tìm kiếm) nằm phía trên và tự cuộn vào giữa khi bàn phím hiện, không bị che.
+
+## Bản 3.9: nấu ăn có hoạt cảnh động
+- Khay nguyên liệu: chỉ hiện đúng nguyên liệu của món, chạm một ô là các phần "múc" rơi vào khay; đếm theo số phần (ví dụ 8/8), có nút "Lấy đủ".
+- Sơ chế và Nấu chín: mỗi bước có 2-3 vòng. Thanh tròn chạy đầy, rồi chạm một nút lớn để thái / giã / xiên, khuấy, lật chảo hoặc mở nắp hấp. Không có giới hạn thời gian để chạm. Cảnh động: dao thái, chảo tung, muỗng khuấy, nắp hấp bật, lửa, hơi nước. Món chín thì kêu "Ting".
+- Nêm vị: khách dặn 1-2 vị; chọn mức thì lọ muối/ớt rắc, mật ong rót, chanh nhỏ giọt vào món, có thanh vị.
+
+## Bản 3.10: có tiếng nấu ăn, hoạt ảnh luôn chạy
+- Bỏ bước Trình bày.
+- Tiếng nấu tự tổng hợp: xèo xèo khi chiên/nướng, nước sôi và hơi nước khi nấu, dao thớt khi sơ chế, tiếng tung chảo và khuấy khi chạm.
+- Khói bốc to hơn, tia dầu bắn rõ hơn.
+- Hoạt ảnh không còn bị tắt khi Windows bật "tắt hiệu ứng động" (nguyên nhân khiến nhiều máy thấy ảnh đứng yên).

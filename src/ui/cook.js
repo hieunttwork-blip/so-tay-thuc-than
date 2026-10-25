@@ -1,4 +1,4 @@
-// Màn hình nấu ăn gọn: (1) chọn số lượng cho đúng danh sách nguyên liệu, (2) sơ chế bằng vài lần chạm, (3) canh lửa bấm Dừng.
+// Màn hình nấu ăn không cần thao tác chính xác: (1) khay nguyên liệu, (2) sơ chế và (3) nấu chín bằng hoạt cảnh chờ, (4) nêm 1-2 vị.
 // Dư hoặc thiếu nguyên liệu làm lệch vị, tốn thêm vốn và ảnh hưởng đánh giá của khách. Gợi ý: 3 lần miễn phí cho mỗi món, sau đó tốn tiền và bị trừ điểm.
 import { icon } from '../art/icons.js';
 import { infoBtn } from './extras.js';
@@ -6,7 +6,7 @@ import { DISH_BY_ID, GARNISHES } from '../data/dishes.js';
 import { INGREDIENTS, INGREDIENT_GROUPS } from '../data/ingredients.js';
 import {
   TOOLS, HEATS, STEP_NAMES, STAR_LABEL, SPICE_LABELS, HINT_PENALTY, FREE_HINTS, createSession, methodOf, scoreQuantities, scorePrep,
-  heatParams, markerPos, heatHit, scoreHeatRounds, HEAT_ROUNDS, seasonTarget, scoreSeason, tasteOrderText, dimsFor, TIER_LABEL, tasteHints, tasteIssues, TASTE_DIMS, combine, starsFromScore, hintPrice, hintsUsed, useHint, quantityCost, assistantPrepScore, tasteNote,
+  asksOf, scoreTray, trayChosen, prepMs, heatMs, prepCycles, heatCycles, PREP_VERB, HEAT_ACT, seasonTarget, scoreSeason, tasteOrderText, dimsFor, TIER_LABEL, tasteHints, tasteIssues, TASTE_DIMS, combine, starsFromScore, hintPrice, hintsUsed, useHint, quantityCost, assistantPrepScore, tasteNote,
 } from '../core/cooking.js';
 import { stock, shortage, shortageCost, quickBuy, consume, ingredientPrice } from '../core/economy.js';
 import { ingIcon } from '../art/ingicons.js';
@@ -17,6 +17,7 @@ import { openModal, updateModal, closeModal, confirmDialog, toast, pumpCelebrati
 import { ACT, ui, refresh } from './app.js';
 import { esc, dishArt, stars as starsHtml, money, bar } from './util.js';
 import { emit } from '../core/bus.js';
+import { startCookSound, stopCookSound, cookSfx } from '../core/audio.js';
 
 let C = null;
 export const isCooking = () => Boolean(C);
@@ -32,21 +33,23 @@ export function startCook({ dishId, order = {}, mode = 'order', custId = null, n
   newSession(s);
   ui.cooking = true;
   C.modalId = openModal({ cls: 'cook-modal', closable: false, label: `Nấu ${dish.name}`, html: view() });
-  document.addEventListener('keydown', onSpace, true);
   emit('sfx', 'click');
 }
 
 function newSession(s) {
   const dish = C.dish;
   C.s = createSession(s, dish, C.order);
-  C.qty = Object.fromEntries(Object.keys(C.s.required).map((id) => [id, 0]));
+  C.pick = [];
+  C.anim = null;
+  C.lastDim = null;
+  C.fresh = null;
   C.taste = {};
   C.committed = false;
   C.showShort = false;
   C.hinted = false;
   C.penalty = 0;
-  C.prep = { phase: 'ready', i: 0, hits: 0, timer: null, score: C.s.preprepped ? C.s.scores.prep : null, by: C.s.preprepped ? 'assistant' : 'self' };
-  C.heat = { params: null, running: false, t0: 0, raf: 0, score: null, round: 0, results: [], flash: null };
+  C.prep = { score: C.s.preprepped ? C.s.scores.prep : null, by: C.s.preprepped ? 'assistant' : 'self' };
+  C.heat = { score: null };
   C.result = null;
 }
 
@@ -66,212 +69,215 @@ function head() {
 function view() {
   if (C.result) return head() + resultView();
   const body = { select: selectView, prep: prepView, heat: heatView, season: seasonView }[cur()]();
+  syncSound();
   return head() + `<div class="cook-body">${body}</div>`;
 }
 
-// ---------- 1. Chọn số lượng nguyên liệu ----------
+// ---------- 1. Khay nguyên liệu: chạm ô để "múc" đủ số phần vào khay ----------
+const chosenOf = () => trayChosen(C.s.required, C.pick);
+const reqIds = () => Object.keys(C.s.required);
+const rnd = (a, b) => Math.round(a + Math.random() * (b - a));
 function selectView() {
   const s = getState();
   const req = C.s.required;
-  const rows = Object.keys(req).map((id) => {
+  const total = Object.values(req).reduce((a, b) => a + b, 0);
+  const got = C.pick.reduce((a, id) => a + req[id], 0);
+  const items = C.pick.flatMap((id) => Array.from({ length: req[id] }, (_, k) => {
+    const fresh = C.fresh === id || C.fresh === 'all';
+    return `<span class="bi ${fresh ? 'drop' : ''}" style="--d:${k * 120}ms;--x:${rnd(-30, 30)}px">${ingIcon(id, 30)}</span>`;
+  })).join('');
+  const tiles = reqIds().map((id) => {
     const ing = INGREDIENTS[id];
     const have = stock(s, id);
-    const q = C.qty[id];
-    const max = practice() ? 9 : Math.min(9, have);
-    const low = !practice() && have < req[id];
-    return `<li class="qrow ${q === req[id] ? 'match' : ''}">
-      <span class="qi">${ingIcon(id, 34)}</span>
-      <div class="qn"><b>${esc(ing.name)}</b><small class="need">Cần <b>${req[id]}</b> · ${practice() ? 'Nấu thử: không tốn' : low ? `<span class="warn">Kho chỉ có ${have}</span>` : `Kho: ${have}`}</small></div>
-      <button type="button" class="btn ghost round" data-act="ck-q" data-id="${id}" data-d="-1" aria-label="Giảm ${esc(ing.name)}" ${q <= 0 ? 'disabled' : ''}>${icon('minus', 18)}</button>
-      <output class="qv" aria-label="Số lượng ${esc(ing.name)}">${q}</output>
-      <button type="button" class="btn ghost round" data-act="ck-q" data-id="${id}" data-d="1" aria-label="Tăng ${esc(ing.name)}" ${q >= max ? 'disabled' : ''}>${icon('plus', 18)}</button></li>`;
+    const on = C.pick.includes(id);
+    const out = !practice() && have < req[id];
+    return `<button type="button" class="tile ${on ? 'on' : ''} ${out ? 'out' : ''}" data-act="ck-pick" data-id="${id}" aria-pressed="${on}" aria-label="${esc(ing.name)}, cần ${req[id]} phần">
+      <i class="qb">×${req[id]}</i><span class="ti">${ingIcon(id, 44)}</span><b>${esc(ing.name)}</b><small>${practice() ? 'Tự do' : out ? `Kho thiếu (${have})` : `Kho ${have}`}</small>${on ? `<i class="tk">${icon('check', 14)}</i>` : ''}</button>`;
   }).join('');
   let short = '';
   if (C.showShort && !practice()) {
-    const miss = shortage(s, C.s.required);
-    const sc = shortageCost(s, C.s.required);
+    const ch = chosenOf();
+    const miss = shortage(s, ch);
+    const sc = shortageCost(s, ch);
     short = `<div class="note warn" role="alert">${icon('shop', 18)}<div><b>Kho thiếu:</b> ${Object.entries(miss).map(([id, q]) => `${q} ${esc(INGREDIENTS[id].name)}`).join(', ')}.
       ${sc.buyable ? `<div class="row"><button type="button" class="btn primary small" data-act="ck-quickbuy" ${sc.cost > s.cash ? 'disabled' : ''}>Mua nhanh ${money(sc.cost)}</button></div>` : '<div>Có nguyên liệu hiếm chỉ kiếm được khi khám phá.</div>'}</div></div>`;
   }
-  const total = Object.values(C.qty).reduce((a, b) => a + b, 0);
-  return `<p class="lead">Bấm + / − để lấy <b>đúng số lượng</b> mỗi nguyên liệu như ghi ở chữ "Cần". Dư hoặc thiếu đều làm lệch vị, tốn vốn và khách chấm thấp.</p>
-  <ul class="qlist">${rows}</ul>${short}
-  <div class="row end wrap"><button type="button" class="btn primary" data-act="ck-select-ok" ${total ? '' : 'disabled'}>Xác nhận</button></div>`;
+  const full = C.pick.length === reqIds().length;
+  return `<p class="lead">Chạm từng nguyên liệu để <b>múc vào khay</b>. Game tự lấy đúng số phần cho bạn.</p>
+  <div class="bowl"><div class="bowl-in">${items || '<em>Khay đang trống</em>'}</div></div>
+  <div class="tray-count" aria-live="polite">Đã lấy <b>${got}/${total}</b> phần</div>
+  <div class="tray">${tiles}</div>${short}
+  <div class="row end wrap"><button type="button" class="btn" data-act="ck-pickall" ${full ? 'disabled' : ''}>Lấy đủ</button><button type="button" class="btn primary" data-act="ck-select-ok" ${full ? '' : 'disabled'}>Xác nhận khay</button></div>`;
 }
-ACT['ck-q'] = (el) => {
-  const id = el.dataset.id, s = getState();
-  const max = practice() ? 9 : Math.min(9, stock(s, id));
-  C.qty[id] = Math.max(0, Math.min(max, C.qty[id] + Number(el.dataset.d)));
+ACT['ck-pick'] = (el) => {
+  const id = el.dataset.id;
+  const i = C.pick.indexOf(id);
+  if (i >= 0) { C.pick.splice(i, 1); C.fresh = null; } else { C.pick.push(id); C.fresh = id; }
   C.showShort = false;
   emit('sfx', 'pick');
   redraw();
 };
-ACT['ck-spice'] = (el) => { C.spice = Number(el.dataset.i); emit('sfx', 'pick'); redraw(); };
+ACT['ck-pickall'] = () => { C.pick = reqIds(); C.fresh = 'all'; C.showShort = false; emit('sfx', 'coin'); redraw(); };
 ACT['ck-quickbuy'] = () => {
-  const r = act((s) => quickBuy(s, C.s.required));
+  const r = act((s) => quickBuy(s, chosenOf()));
   if (!r.ok) toast(r.reason, 'bad');
-  else for (const id of Object.keys(C.s.required)) C.qty[id] = Math.max(C.qty[id], Math.min(C.s.required[id], stock(getState(), id)));
   C.showShort = false;
   redraw();
 };
 ACT['ck-select-ok'] = () => {
   const s = getState();
-  const chosen = Object.fromEntries(Object.entries(C.qty).filter(([, q]) => q > 0));
+  const chosen = chosenOf();
   if (!practice() && Object.keys(shortage(s, chosen)).length) { C.showShort = true; redraw(); return; }
-  if (!practice() && Object.entries(C.s.required).some(([id, q]) => stock(s, id) < q) && !C.showShortSeen) { C.showShort = true; C.showShortSeen = true; redraw(); return; }
-  const spiceOk = true;
-  const sel = scoreQuantities(C.s.required, C.qty, spiceOk);
+  const sel = scoreTray(C.s.required, C.pick);
   if (!practice()) act((st) => consume(st, chosen));
   C.committed = !practice();
   C.cost = quantityCost(chosen);
   C.issues = sel.issues;
-  C.spiceOk = spiceOk;
+  C.spiceOk = true;
   C.s.scores.select = sel.score;
   nextStep();
 };
 
 function nextStep() {
+  if (C.anim) clearTimeout(C.anim.timer);
+  C.anim = null;
   C.s.index += 1;
   while (C.s.index < C.s.steps.length && cur() === 'prep' && C.prep.score != null) { C.s.scores.prep = C.prep.score; C.s.index += 1; } // phụ bếp đã sơ chế sẵn
   if (C.s.index >= C.s.steps.length) return finishCook();
   redraw();
 }
 
-// ---------- 2. Sơ chế: chạm nhanh vài mục tiêu ----------
+// Âm thanh nền theo trạng thái: xèo xèo, nước sôi, hơi nước, dao thớt
+function syncSound() {
+  stopCookSound();
+  const a = C.anim, st = cur();
+  if (C.result || !a || a.phase === 'done') return;
+  if (st === 'prep') {
+    if (a.phase === 'act') [0, 220, 440, 660].forEach((t) => setTimeout(() => cookSfx('chop'), t));
+    else startCookSound('chop');
+    return;
+  }
+  const kind = HEAT_ACT[methodOf(C.dish).heat].kind;
+  if (a.phase === 'act') { cookSfx(kind === 'flip' ? 'flip' : kind === 'stir' ? 'stir' : 'hiss'); startCookSound(kind === 'flip' ? 'sizzle' : 'boil'); return; }
+  if (kind === 'flip') startCookSound('sizzle');
+  else { startCookSound('boil'); startCookSound('hiss'); }
+}
+
+// ---------- Động tác có thanh thời gian tròn: chờ chạy hết, rồi chạm để lật / khuấy / thái ----------
+function ensureAct(kind, cycles, dur) {
+  if (C.anim && C.anim.step === kind) return C.anim;
+  const a = { step: kind, cycle: 0, cycles, phase: 'run', dur: Math.max(1600, Math.round(dur / cycles)), t0: performance.now(), timer: 0 };
+  a.timer = setTimeout(() => readyAct(a), a.dur);
+  C.anim = a;
+  return a;
+}
+function readyAct(a) {
+  if (!C || C.anim !== a) return;
+  a.phase = 'ready';
+  emit('sfx', 'bell');
+  redraw();
+}
+ACT['ck-act'] = () => {
+  const a = C && C.anim;
+  if (!a || a.phase !== 'ready') return;
+  a.phase = 'act';
+  emit('sfx', a.step === 'heat' ? 'sizzle' : 'pick');
+  redraw();
+  a.timer = setTimeout(() => {
+    if (!C || C.anim !== a) return;
+    a.cycle += 1;
+    if (a.cycle >= a.cycles) {
+      a.phase = 'done';
+      C.s.scores[a.step] = 100;
+      C[a.step].score = 100;
+      emit('sfx', a.step === 'heat' ? 'ting' : 'pick');
+    } else { a.phase = 'run'; a.t0 = performance.now(); a.timer = setTimeout(() => readyAct(a), a.dur); }
+    redraw();
+  }, 1000);
+};
+function ringHtml(a, verb, ico) {
+  const run = a.phase === 'run', ready = a.phase === 'ready';
+  const el = Math.round(performance.now() - a.t0);
+  return `<div class="actwrap"><div class="pips" aria-label="Lần ${Math.min(a.cycle + 1, a.cycles)} trên ${a.cycles}">${Array.from({ length: a.cycles }, (_, i) => `<i class="${i < a.cycle ? 'ok' : i === a.cycle ? 'cur' : ''}"></i>`).join('')}</div>
+  <div class="actring ${a.phase}"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="rb" cx="60" cy="60" r="54"/><circle class="rf" cx="60" cy="60" r="54" style="${run ? `animation-duration:${a.dur}ms;animation-delay:-${el}ms` : ''}"/></svg>
+  <button type="button" class="actbtn" data-act="ck-act" ${ready ? 'data-autofocus' : 'disabled'} aria-label="${ready ? `Chạm để ${verb}` : 'Đang chờ'}">${ready ? `<b>Chạm để ${verb}!</b>` : run ? `<span>${ico}</span><small>Chờ chút…</small>` : '<span>✨</span>'}</button></div></div>`;
+}
+const bitsHtml = (n, sz) => reqIds().slice(0, n).map((id, i) => `<span class="bit b${i}">${ingIcon(id, sz)}</span>`).join('');
+
 function prepView() {
   const m = methodOf(C.dish);
   const p = C.prep;
   const b = C.s.bonus;
-  if (p.score != null) {
-    return `<div class="note good">${icon('check', 18)}<div>${p.by === 'assistant' ? 'Phụ bếp đã sơ chế giúp bạn.' : 'Sơ chế xong.'} Điểm sơ chế: <b>${p.score}</b></div></div>
+  if (p.score != null && p.by === 'assistant') {
+    return `<div class="note good">${icon('check', 18)}<div>Phụ bếp đã sơ chế giúp bạn. Điểm sơ chế: <b>${p.score}</b></div></div>
     <div class="row end"><button type="button" class="btn primary" data-act="ck-next" data-autofocus>Tiếp tục</button></div>`;
   }
-  if (p.phase === 'run') {
-    return `<p class="lead">Chạm thật nhanh vào mục tiêu vừa hiện ra!</p>
-    <div class="prep-info"><span id="prep-count">${p.i + 1}/${C.s.needed}</span><span class="chip">${icon(TOOLS[m.tool].icon, 16)}${esc(TOOLS[m.tool].name)}</span></div>
-    <div class="prep-board" id="prep-board" aria-live="polite"></div>`;
+  const verb = PREP_VERB[m.tool] || 'sơ chế';
+  const a = ensureAct('prep', prepCycles(), prepMs(C.dish, b));
+  const scene = `<div class="scene sc-prep ${a.phase}" aria-hidden="true"><div class="cutboard">${bitsHtml(3, 36)}<span class="half h1"></span><span class="half h2"></span></div><div class="chop">${icon(TOOLS[m.tool].icon, 60)}</div><div class="chips-fx"><u></u><u></u><u></u><u></u></div></div>`;
+  if (a.phase === 'done') {
+    return `${scene}<div class="note good">${icon('check', 18)}<div>Sơ chế xong, nguyên liệu đã sẵn sàng.</div></div>
+    <div class="row end"><button type="button" class="btn primary" data-act="ck-next" data-autofocus>Tiếp tục</button></div>`;
   }
-  return `<p class="lead">Sơ chế: <b>${esc(m.verb)}</b>. Chạm đủ ${C.s.needed} mục tiêu khi chúng hiện ra.</p>
-  <div class="row wrap"><button type="button" class="btn primary" data-act="ck-prep-go" data-autofocus>${icon(TOOLS[m.tool].icon, 18)}<span>Bắt đầu sơ chế</span></button>
-  ${b.assistant ? `<button type="button" class="btn" data-act="ck-assist">${icon('u-assistant', 18)}<span>Nhờ phụ bếp (≈${assistantPrepScore(getState(), b)} điểm)</span></button>` : ''}</div>`;
+  return `<p class="lead">Sơ chế: <b>${esc(m.verb)}</b>. Chờ vòng tròn chạy đầy, rồi chạm để ${verb}.</p>${scene}${ringHtml(a, verb, icon(TOOLS[m.tool].icon, 26))}
+  ${b.assistant ? `<div class="row end"><button type="button" class="btn small" data-act="ck-assist">${icon('u-assistant', 16)}<span>Nhờ phụ bếp làm nhanh (≈${assistantPrepScore(getState(), b)} điểm)</span></button></div>` : ''}`;
 }
 ACT['ck-assist'] = () => {
+  if (C.anim) clearTimeout(C.anim.timer);
+  C.anim = null;
   C.prep.score = assistantPrepScore(getState(), C.s.bonus);
   C.prep.by = 'assistant';
   C.s.scores.prep = C.prep.score;
   redraw();
 };
-ACT['ck-prep-go'] = () => {
-  const p = C.prep;
-  p.phase = 'run'; p.i = 0; p.hits = 0;
-  redraw();
-  showTarget();
-};
-function showTarget() {
-  const p = C.prep;
-  const board = document.getElementById('prep-board');
-  if (!board) return;
-  const win = C.s.prepWindow;
-  const x = 12 + Math.random() * 68, y = 10 + Math.random() * 62;
-  board.innerHTML = `<button type="button" class="ptarget" data-act="ck-hit" style="left:${x}%;top:${y}%;--win:${win}ms" aria-label="Chạm vào đây">${icon(TOOLS[methodOf(C.dish).tool].icon, 30)}</button>`;
-  const cnt = document.getElementById('prep-count');
-  if (cnt) cnt.textContent = `${p.i + 1}/${C.s.needed}`;
-  clearTimeout(p.timer);
-  p.timer = setTimeout(() => advanceTarget(false), win);
-}
-function advanceTarget(hit) {
-  const p = C.prep;
-  if (!C || p.phase !== 'run') return;
-  clearTimeout(p.timer);
-  if (hit) { p.hits += 1; emit('sfx', 'sizzle'); }
-  p.i += 1;
-  if (p.i >= C.s.needed) return endPrep();
-  showTarget();
-}
-ACT['ck-hit'] = () => advanceTarget(true);
-function endPrep() {
-  const p = C.prep;
-  p.phase = 'done';
-  p.score = scorePrep({ toolOk: true, hits: p.hits, needed: C.s.needed });
-  C.s.scores.prep = p.score;
-  redraw();
-}
 ACT['ck-next'] = () => nextStep();
 
-// ---------- 3. Canh lửa: thanh xanh nhỏ, bấm Dừng trúng vùng xanh 3 lần ----------
 function heatView() {
   const m = methodOf(C.dish);
   const H = HEATS[m.heat];
-  const h = C.heat;
-  if (!h.params) h.params = heatParams(C.dish, C.s.bonus, Math.random(), H.correct);
-  const dots = Array.from({ length: HEAT_ROUNDS }, (_, i) => { const r = h.results[i]; return `<i class="hd ${r ? (r.hit ? 'hit' : 'miss') : i === h.round ? 'cur' : ''}">${r ? (r.hit ? '✓' : '✗') : i + 1}</i>`; }).join('');
-  if (h.score != null) {
-    return `<div class="heat-dots">${dots}</div><div class="note ${h.score >= 70 ? 'good' : ''}">${icon(H.icon, 18)}<div>Trúng ${h.results.filter((r) => r.hit).length}/${HEAT_ROUNDS} lần. Điểm canh lửa: <b>${h.score}</b></div></div>
+  const A = HEAT_ACT[m.heat];
+  const a = ensureAct('heat', heatCycles(C.dish), heatMs(C.dish, C.s.bonus));
+  const sparks = '<div class="sparks"><u></u><u></u><u></u><u></u><u></u></div>';
+  const fire = '<div class="fire"><i></i><i></i><i></i></div>';
+  const steam = '<div class="steam"><i></i><i></i><i></i></div>';
+  const inner = A.kind === 'flip'
+    ? `${steam}<div class="panwrap"><div class="food">${bitsHtml(3, 30)}</div><div class="pan"></div><div class="handle"></div>${sparks}</div>${fire}`
+    : `${steam}${A.kind === 'lid' ? '<div class="lid"></div>' : '<div class="ladle"><i></i></div>'}<div class="pot"><div class="liquid">${bitsHtml(3, 26)}<u class="bub k1"></u><u class="bub k2"></u><u class="bub k3"></u></div></div>${fire}`;
+  const scene = `<div class="scene sc-heat k-${A.kind} ${a.phase}" aria-hidden="true">${inner}${a.phase === 'done' ? '<div class="ting">Ting!</div>' : ''}</div>`;
+  if (a.phase === 'done') {
+    return `${scene}<div class="note good">${icon(H.icon, 18)}<div><b>Ting!</b> Món đã chín.</div></div>
     <div class="row end"><button type="button" class="btn primary" data-act="ck-next" data-autofocus>Tiếp tục</button></div>`;
   }
-  return `<p class="lead">${esc(H.label)} (đã chỉnh lửa ${H.temps[H.correct].toLowerCase()}). Bấm <b>Dừng</b> (hoặc phím Cách) khi chấm tròn nằm trong vùng xanh. Trúng ${HEAT_ROUNDS} lần là đạt 100 điểm, không cần đúng chính giữa.</p>
-  <div class="heat-dots">${dots}</div>${trackHtml(h.params, h.flash ? h.stopPos : 0, h.flash)}
-  <div class="row center">${h.running ? `<button type="button" class="btn primary big" data-act="ck-stop" data-autofocus>Dừng!</button>` : `<button type="button" class="btn primary big" data-act="ck-heat-go" data-autofocus ${h.flash ? 'disabled' : ''}>${h.round === 0 ? 'Bắt đầu' : 'Lần tiếp'}</button>`}</div>`;
-}
-function trackHtml(p, pos = 0, flash = null) {
-  return `<div class="heat-track ${flash ? (flash === 'hit' ? 'f-hit' : 'f-miss') : ''}" aria-hidden="true"><div class="zone" style="left:${p.center - p.width / 2}%;width:${p.width}%"></div><div id="hk-marker" class="marker" style="left:${pos}%"></div></div>`;
-}
-ACT['ck-heat-go'] = () => {
-  const h = C.heat;
-  if (h.running || h.round >= HEAT_ROUNDS) return;
-  h.running = true; h.flash = null;
-  h.t0 = performance.now();
-  redraw();
-  const loop = () => {
-    if (!C || !h.running) return;
-    const t = performance.now() - h.t0;
-    h.pos = markerPos(t, h.params.period);
-    const m = document.getElementById('hk-marker');
-    if (m) m.style.left = `${h.pos}%`;
-    if (t > h.params.period * 2) { stopHeat(); return; }
-    h.raf = requestAnimationFrame(loop);
-  };
-  h.raf = requestAnimationFrame(loop);
-};
-function stopHeat() {
-  const h = C.heat;
-  if (!h.running) return;
-  h.running = false;
-  cancelAnimationFrame(h.raf);
-  h.stopPos = h.pos ?? 0;
-  const r = heatHit(h.stopPos, h.params);
-  h.results.push(r);
-  h.round += 1;
-  h.flash = r.hit ? 'hit' : 'miss';
-  emit('sfx', r.hit ? 'sizzle' : 'error');
-  if (h.round >= HEAT_ROUNDS) {
-    h.score = scoreHeatRounds(h.results);
-    C.s.scores.heat = h.score;
-    redraw();
-    return;
-  }
-  redraw();
-  // vòng kế tiếp: vùng xanh dời chỗ khác
-  h.timer = setTimeout(() => { if (!C || C.heat !== h) return; h.params = heatParams(C.dish, C.s.bonus, Math.random(), HEATS[methodOf(C.dish).heat].correct); h.flash = null; redraw(); }, 800);
-}
-ACT['ck-stop'] = () => stopHeat();
-function onSpace(e) {
-  if (!C || C.result || e.code !== 'Space') return;
-  if (cur() === 'heat' && C.heat.running) { e.preventDefault(); stopHeat(); }
+  return `<p class="lead">${esc(A.doing)} (lửa ${H.temps[H.correct].toLowerCase()}). Chờ vòng tròn đầy, rồi chạm để ${A.verb}.</p>${scene}${ringHtml(a, A.verb, icon(H.icon, 26))}`;
 }
 
-// ---------- 4. Nêm vị theo yêu cầu của khách: mặn, ngọt, chua, cay ----------
+// ---------- 4. Nêm vị: khách chỉ dặn 1 đến 2 vị, rắc / rót / nhỏ giọt ----------
+const DIMFX = {
+  salt: { e: '🧂', c: '#f4f0e4', kind: 'sprinkle' }, sweet: { e: '🍯', c: '#e9a82c', kind: 'pour' },
+  sour: { e: '🍋', c: '#d6e04a', kind: 'drip' }, spice: { e: '🌶️', c: '#d9402b', kind: 'sprinkle' },
+};
+function fxParticles(n) { return Array.from({ length: n }, () => `<i style="--x:${rnd(-26, 26)}px;--dl:${rnd(0, 380)}ms"></i>`).join(''); }
 function seasonView() {
-  const rows = dimsFor(C.dish).map(([k, label, sub]) => `<div class="tasterow"><div class="st-name"><b>${label}</b><small>${sub}</small></div>
-    <div class="tiers" role="group" aria-label="${label}">${TIER_LABEL[k].map((l, i) => `<button type="button" class="chip pick ${C.taste[k] === i ? 'on' : ''}" data-act="ck-taste" data-k="${k}" data-v="${i}" aria-pressed="${C.taste[k] === i}">${l}</button>`).join('')}</div></div>`).join('');
-  const done = dimsFor(C.dish).every(([k]) => C.taste[k] != null);
+  const asks = asksOf(C.dish, C.s.order.taste);
+  const rows = TASTE_DIMS.filter(([k]) => asks.includes(k)).map(([k, label, sub]) => {
+    const v = C.taste[k];
+    return `<div class="tasterow"><div class="st-name"><span class="dimico">${DIMFX[k].e}</span><div><b>${label}</b><small>${sub}</small></div>
+      <span class="meter" aria-hidden="true">${[0, 1, 2].map((i) => `<i class="${v != null && i <= v ? 'on' : ''}" style="--c:${DIMFX[k].c}"></i>`).join('')}</span></div>
+    <div class="tiers" role="group" aria-label="${label}">${TIER_LABEL[k].map((l, i) => `<button type="button" class="chip pick big ${v === i ? 'on pop' : ''}" data-act="ck-taste" data-k="${k}" data-v="${i}" aria-pressed="${v === i}">${l}</button>`).join('')}</div></div>`;
+  }).join('');
+  const done = asks.every((k) => C.taste[k] != null);
+  const fx = C.lastDim ? DIMFX[C.lastDim] : null;
+  const scene = `<div class="sscene ${fx ? `go k-${fx.kind}` : ''}" style="--c:${fx ? fx.c : '#fff'}" aria-hidden="true">
+    <span class="sbottle">${fx ? fx.e : '🥄'}</span><div class="sfall">${fx ? fxParticles(5 + 4 * (C.lastLv + 1)) : ''}</div>
+    <div class="sdish">${dishArt(C.dish, 84)}<div class="sfx-steam"><i></i><i></i><i></i></div></div></div>`;
   return `<div class="note order-note">${icon('customer', 20)}<div>${practice() ? 'Yêu cầu thử' : 'Khách gọi'}: <b>${esc(tasteOrderText(C.dish, C.s.order.taste))}</b></div></div>
-  <p class="lead">Nêm đúng như yêu cầu: chọn mức cho từng vị. Chọn sai một mức bị trừ một nửa điểm của vị đó.</p>
+  ${scene}<p class="lead">Khách chỉ dặn ${asks.length} vị. Chọn mức khách gọi để nêm vào món.</p>
   ${rows}
   <div class="row end wrap"><button type="button" class="btn primary" data-act="ck-season-ok" ${done ? '' : 'disabled'}>Nêm xong</button></div>`;
 }
 ACT['ck-taste'] = (el) => {
   C.taste[el.dataset.k] = Number(el.dataset.v);
+  C.lastDim = el.dataset.k; C.lastLv = Number(el.dataset.v);
   emit('sfx', 'pick');
   redraw();
 };
@@ -303,7 +309,7 @@ function resultView() {
   const rows = C.s.steps.map((st) => `<li><span>${STEP_NAMES[st]}${C.hinted[st] ? ' <small>(gợi ý)</small>' : ''}</span>${bar(r.scores[st] ?? 0, 'sc', STEP_NAMES[st])}<b>${r.scores[st] ?? 0}</b></li>`).join('');
   let extra = '';
   const weak = C.s.steps.map((st) => [st, r.scores[st] ?? 100]).sort((a, b) => a[1] - b[1])[0];
-  const weakNote = r.stars > 0 && r.stars < 3 && weak && weak[1] < 90 ? `<div class="note warn">${icon('help', 18)}<div>Bước <b>${STEP_NAMES[weak[0]]}</b> mới đạt ${weak[1]} điểm nên món chưa thể đạt 3 sao. Làm đều tay cả bốn bước mới được 3 sao.</div></div>` : '';
+  const weakNote = r.stars > 0 && r.stars < 3 && weak && weak[1] < 90 ? `<div class="note warn">${icon('help', 18)}<div>Bước <b>${STEP_NAMES[weak[0]]}</b> mới đạt ${weak[1]} điểm nên món chưa thể đạt 3 sao. Làm đủ tốt các bước mới được 3 sao.</div></div>` : '';
   const note = tasteNote([...(C.issues || []), ...(C.tasteIss || [])], C.spiceOk === false);
   const tn = `<div class="note ${C.issues?.length || C.tasteIss?.length || C.spiceOk === false ? 'warn' : 'good'}">${icon('help', 18)}<div>${esc(note)}${C.penalty ? ` Đã dùng gợi ý trả phí: -${C.penalty} điểm.` : ''}</div></div>`;
   if (C.mode === 'order') {
@@ -347,10 +353,8 @@ ACT['ck-cancel'] = async () => {
 
 function endCook() {
   if (!C) return;
-  clearTimeout(C.prep.timer);
-  cancelAnimationFrame(C.heat.raf);
-  clearTimeout(C.heat.timer);
-  document.removeEventListener('keydown', onSpace, true);
+  stopCookSound();
+  if (C.anim) clearTimeout(C.anim.timer);
   const id = C.modalId;
   C = null;
   ui.cooking = false;

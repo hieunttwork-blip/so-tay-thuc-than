@@ -40,8 +40,50 @@ const SOUNDS = {
   pick: () => tone(660, 0, 0.07, 'sine', 0.08),
   travel: () => { tone(330, 0, 0.12, 'triangle', 0.08); tone(440, 0.1, 0.16, 'triangle', 0.08); },
   upgrade: () => [440, 554, 659].forEach((f, i) => tone(f, i * 0.07, 0.16, 'square', 0.05)),
+  ting: () => { tone(1568, 0, 0.55, 'sine', 0.16); tone(2349, 0.03, 0.8, 'sine', 0.08); },
   sizzle: () => tone(180, 0, 0.12, 'sawtooth', 0.03),
 };
+
+// ---- Tiếng nấu ăn tự tổng hợp: xèo xèo, nước sôi, hơi nước, dao thớt ----
+let noiseBuf = null;
+function noiseBuffer() {
+  if (noiseBuf || !ctx) return noiseBuf;
+  const len = ctx.sampleRate * 2, b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  noiseBuf = b;
+  return b;
+}
+function noiseBurst(start, dur, vol, type, freq, q = 1) {
+  const c = ctx; if (!c) return;
+  const src = c.createBufferSource(); src.buffer = noiseBuffer();
+  const f = c.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+  const g = c.createGain(); const t0 = c.currentTime + start;
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.005); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  src.connect(f); f.connect(g); g.connect(c.destination);
+  src.start(t0, Math.random()); src.stop(t0 + dur + 0.02);
+}
+const COOK = {
+  sizzle: () => { for (let i = 0; i < 6; i++) noiseBurst(i * 0.05 + Math.random() * 0.04, 0.05, 0.06 + Math.random() * 0.05, 'highpass', 4500 + Math.random() * 2500); },
+  boil: () => { tone(260 + Math.random() * 200, 0, 0.07, 'sine', 0.05); noiseBurst(0, 0.22, 0.025, 'lowpass', 700); if (Math.random() < 0.5) tone(380 + Math.random() * 220, 0.12, 0.06, 'sine', 0.04); },
+  hiss: () => noiseBurst(0, 0.5, 0.035, 'bandpass', 6500, 0.6),
+  chop: () => { noiseBurst(0, 0.05, 0.16, 'bandpass', 1800, 1.2); tone(150, 0, 0.07, 'sine', 0.1); },
+  flip: () => { noiseBurst(0, 0.35, 0.1, 'bandpass', 2400, 0.7); for (let i = 0; i < 8; i++) noiseBurst(0.12 + i * 0.05, 0.05, 0.1, 'highpass', 5000); },
+  stir: () => { noiseBurst(0, 0.5, 0.06, 'lowpass', 900); tone(300, 0.1, 0.1, 'triangle', 0.05); tone(260, 0.3, 0.1, 'triangle', 0.05); },
+};
+const loops = new Map();
+/** Bật tiếng lặp khi đang nấu (xèo xèo, sôi, hơi nước). Gọi stopCookSound để tắt. */
+export function startCookSound(kind) {
+  if (!enabled || !ctx || loops.has(kind) || !COOK[kind]) return;
+  const every = { sizzle: 260, boil: 230, hiss: 520, chop: 520 }[kind] || 400;
+  const t = setInterval(() => { try { COOK[kind](); } catch { /* tùy chọn */ } }, every);
+  loops.set(kind, t);
+  try { COOK[kind](); } catch { /* tùy chọn */ }
+}
+export function stopCookSound(kind) {
+  if (!kind) { for (const t of loops.values()) clearInterval(t); loops.clear(); return; }
+  clearInterval(loops.get(kind)); loops.delete(kind);
+}
+export function cookSfx(kind) { if (enabled && ctx && COOK[kind]) { try { COOK[kind](); } catch { /* tùy chọn */ } } }
 
 export function sfx(name) {
   if (!enabled || !ctx) return;

@@ -22,7 +22,7 @@ export const HEATS = {
   steam: { label: 'Hấp', temps: ['Nhỏ', 'Vừa', 'Lớn'], correct: 1, icon: 'h-steam' },
 };
 
-export const STEP_NAMES = { select: 'Chọn nguyên liệu', prep: 'Sơ chế', heat: 'Canh lửa', season: 'Nêm nếm', plate: 'Trình bày' };
+export const STEP_NAMES = { select: 'Khay nguyên liệu', prep: 'Sơ chế', heat: 'Nấu chín', season: 'Nêm nếm', plate: 'Trình bày' };
 
 // Quy trình gọn: nguyên liệu (điền sẵn), sơ chế, canh lửa, nêm vị bằng trí nhớ (món không cần lửa bỏ bước canh lửa).
 const STD = ['select', 'prep', 'heat', 'season'];
@@ -84,7 +84,17 @@ export function randomTaste(state, dish, spiceTier = null) {
   if (spiceTier != null && dish.spicy) t.spice = spiceTier;
   return t;
 }
-export const tasteOrderText = (dish, taste) => dimsFor(dish).map(([k]) => TIER_LABEL[k][taste[k] ?? 1]).join(' · ');
+/** Khách chỉ dặn 1 đến 2 vị: ưu tiên vị khác công thức; nếu không có thì hỏi vị đặc trưng (cay hoặc mặn). */
+export function asksOf(dish, taste) {
+  const def = defaultTaste(dish);
+  const dims = dimsFor(dish).map((d) => d[0]);
+  const diff = dims.filter((k) => (taste?.[k] ?? def[k]) !== def[k]);
+  const order = ['spice', 'salt', 'sweet', 'sour'];
+  const list = diff.sort((a, b) => order.indexOf(a) - order.indexOf(b)).slice(0, 2);
+  if (!list.length) list.push(dish.spicy ? 'spice' : 'salt');
+  return list;
+}
+export const tasteOrderText = (dish, taste) => asksOf(dish, taste).map((k) => TIER_LABEL[k][taste?.[k] ?? defaultTaste(dish)[k]]).join(' · ');
 /** Mục tiêu vị = đúng yêu cầu của khách. */
 export function seasonTarget(dish, order = {}) {
   const t = defaultTaste(dish);
@@ -94,7 +104,7 @@ export function seasonTarget(dish, order = {}) {
 
 /** Chấm vị: đúng yêu cầu = 100; lệch 1 mức còn 50; lệch 2 mức = 0. */
 export function scoreSeason(target, chosen, bonusPts = 0, dish = null) {
-  const dims = (dish ? dimsFor(dish) : TASTE_DIMS).map((d) => d[0]);
+  const dims = dish ? asksOf(dish, target) : TASTE_DIMS.map((d) => d[0]);
   const avg = dims.reduce((s, k) => { const d = Math.abs((chosen[k] ?? 1) - target[k]); return s + (d === 0 ? 100 : d === 1 ? 50 : 0); }, 0) / dims.length;
   return Math.round(avg >= 100 ? 100 : Math.min(100, avg + bonusPts));
 }
@@ -114,7 +124,7 @@ export function tasteHints(target, chosen) {
 }
 /** Các chiều vị bị lệch, dùng cho nhận xét của khách. */
 export function tasteIssues(target, chosen, dish = null) {
-  return (dish ? dimsFor(dish) : TASTE_DIMS).map(([k]) => ({ id: null, cat: k, dir: Math.sign((chosen[k] || 0) - target[k]), diff: Math.abs((chosen[k] || 0) - target[k]) })).filter((x) => x.diff > 0);
+  return (dish ? asksOf(dish, target) : TASTE_DIMS.map((d) => d[0])).map((k) => ({ id: null, cat: k, dir: Math.sign((chosen[k] || 0) - target[k]), diff: Math.abs((chosen[k] || 0) - target[k]) })).filter((x) => x.diff > 0);
 }
 
 /** Chấm số lượng nguyên liệu người chơi chọn so với công thức. Dư hoặc thiếu đều làm lệch vị. */
@@ -150,6 +160,35 @@ export function useHint(state, dish, practice = false) {
   bump(state, 'hints');
   return { ok: true, cost, penalty: cost > 0 ? HINT_PENALTY : 0 };
 }
+
+/** Khay nguyên liệu: chọn đúng món, game tự lấy số lượng theo công thức. */
+export function scoreTray(required, picked) {
+  const ids = Object.keys(required);
+  const correct = picked.filter((id) => id in required).length;
+  const extra = picked.filter((id) => !(id in required));
+  const issues = [
+    ...ids.filter((id) => !picked.includes(id)).map((id) => ({ id, cat: INGREDIENTS[id]?.group || 'giavi', dir: -1, diff: 2 })),
+    ...extra.map((id) => ({ id, cat: INGREDIENTS[id]?.group || 'giavi', dir: 1, diff: 2 })),
+  ];
+  const score = ids.length ? Math.max(0, Math.round((100 * correct) / ids.length - 10 * extra.length)) : 0;
+  return { score, issues, perfect: !issues.length };
+}
+/** Lượng thật lấy từ kho: đúng món lấy đủ theo công thức, món chọn nhầm lấy 1. */
+export const trayChosen = (required, picked) => Object.fromEntries(picked.map((id) => [id, required[id] || 1]));
+/** Thời gian chờ (ms) của sơ chế và nấu chín: món khó chờ lâu hơn, dụng cụ/bếp tốt chờ ít hơn. */
+/** Mỗi bước nấu gồm vài vòng: chờ thanh tròn chạy hết rồi chạm để làm động tác (lật, khuấy, thái...). */
+export const PREP_VERB = { dao: 'thái', coi: 'giã', ray: 'rây', la: 'gói', tre: 'xiên', xay: 'xay' };
+export const HEAT_ACT = {
+  boil: { verb: 'khuấy', doing: 'Đang đun sôi', kind: 'stir' }, simmer: { verb: 'khuấy', doing: 'Đang om liu riu', kind: 'stir' },
+  fry: { verb: 'lật', doing: 'Đang chiên', kind: 'flip' }, grill: { verb: 'lật', doing: 'Đang nướng', kind: 'flip' },
+  steam: { verb: 'mở nắp', doing: 'Đang hấp', kind: 'lid' },
+};
+export const prepCycles = () => 2;
+export const heatCycles = (dish) => (dish.diff >= 4 ? 3 : 2);
+export const GARNISH_EMOJI = { herb: '🌿', lime: '🍋', chili: '🌶️', shallot: '🧅', peanut: '🥜', sauce: '🥣', pickle: '🥕', egg: '🥚', ice: '🧊', pepper: '⚫' };
+export const GARNISH_COLOR = { herb: '#4f9a3c', lime: '#b8d23a', chili: '#d9402b', shallot: '#c98a2b', peanut: '#b27a3c', sauce: '#8a4a22', pickle: '#e8923a', egg: '#f2d36b', ice: '#cfe9f5', pepper: '#333' };
+export const prepMs = (dish, b) => Math.round((2200 + 350 * dish.diff) * (0.75 + 0.25 * b.tapFactor));
+export const heatMs = (dish, b) => Math.round((3600 + 450 * dish.diff) * (1 - Math.min(0.4, (b.heatZone || 0) / 60)));
 
 export function scoreSelect(required, picked) {
   const req = new Set(Object.keys(required));
